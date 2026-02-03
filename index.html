@@ -123,8 +123,9 @@
 
   .cell.marked {
     background: #ffb703;
-    color: white;
+    /* REMOVE color override so category colors stay */
   }
+
 
   /* ========== Controls ========== */
   #controls {
@@ -291,6 +292,9 @@
       <div id="controls">
         <button id="randomizeBtn">Randomize</button>
         <button id="clearBtn">Clear</button>
+         <!-- 🧹 CLEAR DATA BUTTON -->
+        <button id="clearDataBtn">Clear Data</button>
+        
         <label>
           <input type="checkbox" id="manualFillToggle" />
           Manual Fill Mode
@@ -328,251 +332,331 @@
     </aside>
   </div>
 </main>
-
-<script>
-  const gridSize = 5;
-  const words = {
-    bio: [
-      "Job: Entrepreneur","Job: Bartender","Job: DJ","Job: Developer","Job: Software engineer","Job: PM","Job: Finance / VC","Job: Not listed",
-      "IG / Snap in bio","Has kids (bonus if he says “I’m a single dad”)","Smokes weed","College: Any UC","College Stanford","Conservative",
-      "Long-term, open to short","6’0"
-    ],
-    picture: [
-      "With a fish", "A dog at a party ('Not my dog')","With his mom","Gym flex","Shirtless in bathroom",
-      "Hat-fishing","Distant / Dark / Can’t see face / Blurry","Angel wing photo","Cropped out photo","Car",
-      "Mullet","Meme","Drunk / Hungover / Throwing up","Golden Gate Bridge","Group photo where you can’t tell who he is",
-      "Wedding guest photo","Sunglasses","Hiking / Mountain / Rock climbing","Patagonia jacket","Coachella","Japan"
-    ],
-    prompt: [
-      "Love language: Acts of service","Love language: Physical touch",
-      "Looking for: Witty banter / Dark humor / Don’t take yourself too seriously / Sarcasm / Roast",
-      "Looking for: Something serious / Long-term but open","Looking for: Athletic woman","Looking for: Caring / Kind / Understanding",
-      "All that I ask is: That you’re honest","Worst idea / Most spontaneous thing I’ve done: Joining Hinge",
-      "I'll fall for you if: You trip me (up)","Controversial opinion: Pineapple on pizza","I get overly competitive about: Everything",
-      "I know the best place in town: for brunch","Voice prompt feels cursed/cringe"
-    ],
-    reference: [
-      "The Office","Harry Potter","Game of Thrones","Breaking Bad","Marvel",
-      "Anime","Rick and Morty","Joe Rogan","Crypto / Stock"
-    ],
-    quote: [
-      "Love traveling","Looking for my passenger princess","Just ask","I’m an open book","Bad texter",
-      "Let’s get to know each other","Partner in crime","Make me laugh","I’m not on here much","Add me on IG"
-    ],
-    food: [
-      "Tacos","Pizza","Beer","Sushi","Whiskey","Brunch","Coffee","Ramen","Spicy food",
-      "Boba","Tequila","KBBQ","Hotpot"
-    ],
-    sports: [
-      "Tennis","Pickleball","Football","Golf","Rock climbing","Hiking","Biking","Baseball"
-    ],
-    cliches: [
-      "Coffee is their personality","Writes an essay for a prompt","Someone in the room recognizes/knows him","Empty profile",
-      "Just moved here / New in town","Just got out of a long-term relationship","Raving","Photography","Extremely patronizing comments"
-    ],
-    other: [
-    ]
-  };
-
-  const bingo = document.getElementById('bingo');
-  const randomizeBtn = document.getElementById('randomizeBtn');
-  const clearBtn = document.getElementById('clearBtn');
-  const manualFillToggle = document.getElementById('manualFillToggle');
-  const wordCountDisplay = document.getElementById('wordCount');
-  const newWordInput = document.getElementById('newWordInput');
-  const addWordBtn = document.getElementById('addWordBtn');
-  const wordListElement = document.getElementById('wordList');
-  let manualFillMode = false;
-  let cells = [];
-
-  function shuffle(a){ const arr = a.slice(); for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
-
-  function createGrid(){
-    bingo.innerHTML = ''; cells = [];
-    for(let r=0;r<gridSize;r++){
-      for(let c=0;c<gridSize;c++){
-        const cell = document.createElement('div'); cell.className='cell'; cell.dataset.row=r; cell.dataset.col=c;
-        if(r===2 && c===2){ cell.classList.add('free'); cell.textContent='FREE'; cell.dataset.marked='false'; }
-        else{ cell.textContent=''; cell.dataset.marked='false'; }
-        cell.addEventListener('click',()=>onCellClick(cell));
-        bingo.appendChild(cell); cells.push(cell);
-      }
-    }
-  }
   
-    function getCategory(word) {
-    for (const category in words) {
-      if (words[category].includes(word)) return category;
-    }
-    return null;
-  }
-
-  // Flatten all words into a single array for random use
-  function allWords() {
-    return Object.values(words).flat();
-  }
+<script>
+/* =====================================================
+   🔐 LOCAL STORAGE CONFIG
+===================================================== */
+const STORAGE_KEY = "hingeBingoData";
 
 
-    function randomFill(){
-    const flatWords = allWords();
-    if(flatWords.length < gridSize*gridSize - 1){
-      alert('Not enough words to fill the bingo card.');
-      return;
-    }
-    const shuffled = shuffle(flatWords);
-    let idx = 0;
+/* =====================================================
+   BASE DATA
+===================================================== */
+const gridSize = 5;
+const words = {
+  bio: ["Job: Entrepreneur","Job: Bartender","Job: DJ","Job: Developer","Job: Software engineer","Job: PM","Job: Finance / VC","Job: Not listed","IG / Snap in bio","Has kids (bonus if he says “I’m a single dad”)","Smokes weed","College: Any UC","College Stanford","Conservative","Long-term, open to short","6’0"],
+  picture: ["With a fish","A dog at a party ('Not my dog')","With his mom","Gym flex","Shirtless in bathroom","Hat-fishing","Blurry","Angel wing photo","Cropped photo","Car","Mullet","Meme","Drunk","Golden Gate Bridge","Group photo","Wedding guest","Sunglasses","Hiking","Patagonia","Coachella","Japan"],
+  prompt: ["Love language: Acts of service","Love language: Physical touch","Looking for: Witty banter","Looking for: Something serious","Athletic woman","Caring / Kind","All that I ask is honesty","Worst idea: Joining Hinge","Pineapple on pizza","Competitive","Brunch expert","Cringe voice prompt"],
+  reference: ["The Office","Harry Potter","Game of Thrones","Breaking Bad","Marvel","Anime","Rick and Morty","Joe Rogan","Crypto"],
+  quote: ["Love traveling","Passenger princess","Just ask","Open book","Bad texter","Let’s get to know each other","Partner in crime","Make me laugh","Not on here much","Add me on IG"],
+  food: ["Tacos","Pizza","Beer","Sushi","Whiskey","Brunch","Coffee","Ramen","Boba","KBBQ"],
+  sports: ["Tennis","Pickleball","Football","Golf","Rock climbing","Hiking","Biking","Baseball"],
+  cliches: ["Coffee personality","Essay prompt","Someone knows him","Empty profile","Just moved","New in town","Fresh breakup","Raving","Photography"],
+  other: []
+};
 
-    for(let r=0;r<gridSize;r++){
-      for(let c=0;c<gridSize;c++){
-        const cell = cells[r*gridSize+c];
-        cell.className = "cell"; // reset classes
+/* =====================================================
+   DOM REFERENCES
+===================================================== */
+const bingo = document.getElementById("bingo");
+const randomizeBtn = document.getElementById("randomizeBtn");
+const clearBtn = document.getElementById("clearBtn");
+const clearDataBtn = document.getElementById("clearDataBtn");
+const manualFillToggle = document.getElementById("manualFillToggle");
+const addWordBtn = document.getElementById("addWordBtn");
+const newWordInput = document.getElementById("newWordInput");
+const wordListElement = document.getElementById("wordList");
+const wordCountDisplay = document.getElementById("wordCount");
 
-        if(r===2 && c===2){
-          cell.textContent = 'FREE';
-          cell.classList.add('free');
-          cell.dataset.marked = 'false';
-        } else {
-          const word = shuffled[idx++];
-          const category = getCategory(word);
-          cell.textContent = word;
-          if (category) cell.classList.add(category);
-          cell.dataset.marked = 'false';
-        }
-      }
-    }
-    updateWordList();
-    updateWordCount();
-  }
+let cells = [];
+let manualFillMode = false;
 
-  function clearGrid() {
-    cells.forEach(cell => {
-      if (cell.classList.contains('free')) {
-        // Leave FREE space as-is
-        cell.classList.remove('marked');
-        cell.style.backgroundColor = '';
-        cell.dataset.marked = 'false';
-      } else {
-        // Just clear colors/marked state, keep text
-        cell.classList.remove('marked');
-        cell.style.backgroundColor = '';
-        cell.dataset.marked = 'false';
-      }
+/* =====================================================
+   💾 SAVE STATE
+===================================================== */
+function saveState() {
+  const boardState = cells.map(cell => ({
+    text: cell.textContent,
+    classes: [...cell.classList],
+    marked: cell.dataset.marked === "true"
+  }));
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    words,
+    boardState,
+    manualFillMode
+  }));
+}
+
+/* =====================================================
+   ♻️ RESTORE STATE
+===================================================== */
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return false;
+
+  const data = JSON.parse(raw);
+
+  // restore words
+  Object.keys(words).forEach(cat => {
+    if (data.words?.[cat]) words[cat] = data.words[cat];
+  });
+
+  // restore board
+  data.boardState.forEach((cellData, i) => {
+    const cell = cells[i];
+
+    cell.textContent = cellData.text;
+    cell.className = "cell"; // 👈 FORCE base class
+
+    cellData.classes.forEach(cls => {
+      if (cls !== "cell") cell.classList.add(cls);
     });
+
+    cell.dataset.marked = cellData.marked ? "true" : "false";
+  });
+
+  manualFillMode = data.manualFillMode || false;
+  manualFillToggle.checked = manualFillMode;
+
+  updateWordList();
+  updateWordCount();
+  return true;
+}
+
+/* =====================================================
+   GRID LOGIC
+===================================================== */
+function createGrid() {
+  bingo.innerHTML = "";
+  cells = [];
+
+  for (let i = 0; i < gridSize * gridSize; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.dataset.marked = "false";
+
+    if (i === 12) {
+      cell.textContent = "FREE";
+      cell.classList.add("free");
+    }
+
+    cell.addEventListener("click", () => onCellClick(cell));
+    bingo.appendChild(cell);
+    cells.push(cell);
+  }
+}
+
+function onCellClick(cell) {
+  if (manualFillMode) {
+    if (cell.classList.contains("free")) return;
+    openWordSelector(cell);
+    return;
   }
 
-  function onCellClick(cell){
-    if(manualFillMode){ if(cell.classList.contains('free')) return; openWordSelector(cell); return; }
-    if(cell.dataset.marked==='true'){ cell.dataset.marked='false'; cell.classList.remove('marked'); cell.style.backgroundColor=''; }
-    else{ cell.dataset.marked='true'; cell.classList.add('marked'); cell.style.backgroundColor='#D69F40'; }
+  if (cell.dataset.marked === "true") {
+    cell.dataset.marked = "false";
+    cell.classList.remove("marked");
+  } else {
+    cell.dataset.marked = "true";
+    cell.classList.add("marked");
   }
 
-function openWordSelector(cell){
-  const select=document.createElement('select'); 
-  select.style.width='100%';
+  saveState();
+}
+ 
+function openWordSelector(cell) {
+  const select = document.createElement("select");
+  select.style.width = "100%";
 
-  const empty=document.createElement('option');
-  empty.value='';
-  empty.textContent='-- select word --';
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "-- select word --";
   select.appendChild(empty);
 
-  // Flatten words into an array
+  // Flatten all words
   const allWordsArray = Object.values(words).flat();
 
-  allWordsArray.forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w;
-    opt.textContent = w;
+  allWordsArray.forEach(word => {
+    const opt = document.createElement("option");
+    opt.value = word;
+    opt.textContent = word;
     select.appendChild(opt);
   });
 
-  select.value=(cell.textContent && cell.textContent!=='FREE')?cell.textContent:'';
+  select.value =
+    cell.textContent && cell.textContent !== "FREE"
+      ? cell.textContent
+      : "";
 
-  cell.innerHTML='';
+  cell.innerHTML = "";
   cell.appendChild(select);
-
-  // 👇 prevent dropdown from closing instantly in Chrome
   select.focus();
-  select.addEventListener("click", (e) => {
-    e.stopPropagation();
+
+  // Prevent click-through
+  select.addEventListener("click", e => e.stopPropagation());
+
+  function commit() {
+    const val = select.value.trim();
+
+    cell.className = "cell"; // reset
+    cell.classList.remove("marked"); // 👈 IMPORTANT
+
+    if (val) {
+      const category = getCategory(val);
+      cell.textContent = val;
+      if (category) cell.classList.add(category);
+    } else {
+      cell.textContent = "";
+    }
+
+    cell.dataset.marked = "false";
+    saveState();
+  }
+
+  select.addEventListener("change", commit);
+  select.addEventListener("blur", () => setTimeout(commit, 100));
+}
+
+// 🎨 CATEGORY LOOKUP (RESTORES COLORS)
+function getCategory(word) {
+  for (const category in words) {
+    if (words[category].includes(word)) return category;
+  }
+  return null;
+}
+
+
+function randomFill() {
+  const flat = Object.values(words).flat();
+  const shuffled = flat.sort(() => Math.random() - 0.5);
+  let idx = 0;
+
+  cells.forEach((cell, i) => {
+    cell.className = "cell";
+    cell.classList.remove("marked");
+    cell.dataset.marked = "false";
+
+    if (i === 12) {
+      cell.textContent = "FREE";
+      cell.classList.add("free");
+      return;
+    }
+
+    const word = shuffled[idx++];
+    const category = getCategory(word);
+
+    cell.textContent = word;
+    if (category) cell.classList.add(category);
   });
 
-function commit() {
-  const val = select.value.trim();
-  cell.className = "cell"; // reset classes
-
-  if (val) {
-    const category = getCategory(val);
-    if (!category) {
-      alert("Selected word doesn't belong to any category!");
-    }
-    cell.textContent = val;
-    if (category) cell.classList.add(category); // 👈 add category color class
-  } else {
-    cell.textContent = '';
-  }
-  cell.dataset.marked = 'false';
+  updateWordList();
+  updateWordCount();
+  saveState();
 }
 
-  select.addEventListener('change',()=>{ commit(); });
-  select.addEventListener('blur',()=>{ setTimeout(()=>commit(),100); });
+function clearGrid() {
+  cells.forEach((cell, i) => {
+    if (i === 12) return; // keep FREE cell
+    
+    cell.textContent = "";
+    cell.className = "cell";  // remove all category classes
+    cell.dataset.marked = "false";
+  });
+  updateWordCount(); // optional
+  saveState();
 }
 
-  function updateWordList() {
-    wordListElement.innerHTML = '';
-    for (const category in words) {
-      // Category header
-      const categoryHeader = document.createElement('h3');
-      categoryHeader.textContent = category.toUpperCase();
-      categoryHeader.className = category + "-header";
-      wordListElement.appendChild(categoryHeader);
+/* =====================================================
+   WORD LIST
+===================================================== */
+function updateWordList() {
+  wordListElement.innerHTML = "";
 
-      // Word list
-      const ul = document.createElement('ul');
-      ul.className = category + "-list";
-      words[category].forEach(w => {
-        const li = document.createElement('li');
-        li.textContent = w;
-        ul.appendChild(li);
-      });
-      wordListElement.appendChild(ul);
-    }
-  }
+  Object.entries(words).forEach(([cat, list]) => {
+    // Header
+    const h = document.createElement("h3");
+    h.textContent = cat.toUpperCase();
+    h.classList.add(`${cat}-header`); // 🎨 APPLY HEADER COLOR
+    wordListElement.appendChild(h);
+
+    // List
+    const ul = document.createElement("ul");
+    ul.classList.add(`${cat}-list`); // 🎨 APPLY BULLET COLOR
+
+    list.forEach(w => {
+      const li = document.createElement("li");
+      li.textContent = w;
+      ul.appendChild(li);
+    });
+
+    wordListElement.appendChild(ul);
+  });
+}
   
-  function updateWordCount() {
-    const totalWords = Object.values(words).reduce((sum, arr) => sum + arr.length, 0);
-    wordCountDisplay.textContent = `Option list contains ${totalWords} phrases.`;
-  }
+function updateWordCount() {
+  const total = Object.values(words).reduce((sum, arr) => sum + arr.length, 0);
+  wordCountDisplay.textContent = `Option list contains ${total} phrases.`;
+}
 
 
-  addWordBtn.addEventListener('click', () => {
-    const val = newWordInput.value.trim();
-    const category = document.getElementById('newWordCategory').value;
+/* =====================================================
+   EVENTS
+===================================================== */
+randomizeBtn.onclick = randomFill;
+clearBtn.onclick = clearGrid;
 
-    if (!val) return alert("Please enter a word.");
-    if (!category) return alert("Please select a category.");
+manualFillToggle.onchange = e => {
+  manualFillMode = e.target.checked;
+  saveState();
+};
 
-    // Check if the word already exists in that category
-    if (words[category].includes(val)) {
-      return alert('That word already exists in this category.');
-    }
+addWordBtn.onclick = () => {
+  const val = newWordInput.value.trim();
+  const cat = document.getElementById("newWordCategory").value;
+  if (!val || !cat) return alert("Missing input");
+  words[cat].push(val);
+  newWordInput.value = "";
+  updateWordList();
+  updateWordCount();
+  saveState();
+};
 
-    // Add the word to the selected category
-    words[category].push(val);
+/* =====================================================
+   🧹 CLEAR DATA (FULL RESET)
+===================================================== */
+// Make a copy of original words for reset
+const originalWords = JSON.parse(JSON.stringify(words));
 
-    // Clear inputs
-    newWordInput.value = '';
-    document.getElementById('newWordCategory').value = '';
+clearDataBtn.onclick = () => {
+  if (!confirm("Erase all saved data?")) return;
 
-    // Update the word list and count
-    updateWordList();
-    updateWordCount();
+  // Reset words back to original
+  Object.keys(words).forEach(cat => {
+    words[cat] = [...originalWords[cat]];
   });
 
-  manualFillToggle.addEventListener('change',(e)=>{ manualFillMode=e.target.checked; });
-  randomizeBtn.addEventListener('click',()=>randomFill());
-  clearBtn.addEventListener('click',()=>clearGrid());
+  // Clear localStorage
+  localStorage.removeItem(STORAGE_KEY);
 
-  createGrid(); randomFill(); updateWordList(); updateWordCount();
+  // Clear bingo grid
+  cells.forEach((cell, i) => {
+    cell.textContent = i === 12 ? "FREE" : ""; // keep FREE in center
+    cell.className = "cell";
+    cell.dataset.marked = "false";
+  });
+
+  // Update word list and word count
+  updateWordList();
+  updateWordCount();
+};
+
+/* =====================================================
+   INIT
+===================================================== */
+createGrid();
+if (!loadState()) randomFill();
 </script>
 </body>
 </html>
